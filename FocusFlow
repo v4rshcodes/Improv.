@@ -1,0 +1,161 @@
+import tkinter as tk
+from tkinter import messagebox, simpledialog
+import time
+import threading
+import os
+
+# -----------------------------------
+# Core Logic: Task, Timer, and Blocking
+# -----------------------------------
+
+class FocusFlowApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("FocusFlow — Screen Time Manager")
+        self.root.geometry("500x600")
+        self.root.config(bg="#1E1E1E")
+
+        # Data structures
+        self.tasks = []
+        self.current_task_index = -1
+        self.remaining_time = 0
+        self.break_duration = 5 * 60  # default 5 min
+        self.focus_points = 0
+        self.is_break = False
+        self.running = False
+
+        # UI Components
+        self.setup_ui()
+
+    def setup_ui(self):
+        tk.Label(self.root, text="FocusFlow", fg="white", bg="#1E1E1E",
+                 font=("Helvetica", 22, "bold")).pack(pady=15)
+
+        self.task_frame = tk.Frame(self.root, bg="#1E1E1E")
+        self.task_frame.pack(pady=10)
+
+        self.task_listbox = tk.Listbox(self.task_frame, width=40, height=10,
+                                       bg="#2D2D2D", fg="white", font=("Arial", 12))
+        self.task_listbox.pack(side=tk.LEFT, fill=tk.BOTH)
+
+        scrollbar = tk.Scrollbar(self.task_frame, command=self.task_listbox.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.task_listbox.config(yscrollcommand=scrollbar.set)
+
+        # Buttons
+        btn_frame = tk.Frame(self.root, bg="#1E1E1E")
+        btn_frame.pack(pady=10)
+
+        tk.Button(btn_frame, text="➕ Add Task", command=self.add_task,
+                  bg="#007ACC", fg="white", font=("Arial", 11)).grid(row=0, column=0, padx=5)
+        tk.Button(btn_frame, text="▶️ Start", command=self.start_next_task,
+                  bg="#3A9D23", fg="white", font=("Arial", 11)).grid(row=0, column=1, padx=5)
+        tk.Button(btn_frame, text="⏸️ Stop", command=self.stop_timer,
+                  bg="#CC3300", fg="white", font=("Arial", 11)).grid(row=0, column=2, padx=5)
+
+        # Timer Label
+        self.timer_label = tk.Label(self.root, text="00:00", fg="#00FF99",
+                                    bg="#1E1E1E", font=("Courier", 36, "bold"))
+        self.timer_label.pack(pady=20)
+
+        self.status_label = tk.Label(self.root, text="Ready", fg="#AAAAAA",
+                                     bg="#1E1E1E", font=("Arial", 14))
+        self.status_label.pack(pady=5)
+
+        self.points_label = tk.Label(self.root, text="Focus Points: 0",
+                                     fg="#FFD700", bg="#1E1E1E", font=("Arial", 14))
+        self.points_label.pack(pady=5)
+
+    def add_task(self):
+        name = simpledialog.askstring("Task", "Enter task name:")
+        if not name:
+            return
+        try:
+            duration = int(simpledialog.askstring("Duration", "Enter duration (minutes):"))
+        except:
+            messagebox.showerror("Invalid", "Please enter a valid number.")
+            return
+
+        self.tasks.append({"name": name, "duration": duration * 60})
+        self.task_listbox.insert(tk.END, f"{name} — {duration} min")
+
+    def start_next_task(self):
+        if self.running:
+            return
+
+        if self.is_break:
+            messagebox.showinfo("Break", "Finish your break first.")
+            return
+
+        self.current_task_index += 1
+        if self.current_task_index >= len(self.tasks):
+            messagebox.showinfo("Done", "All tasks completed!")
+            return
+
+        self.running = True
+        task = self.tasks[self.current_task_index]
+        self.remaining_time = task["duration"]
+        self.status_label.config(text=f"Working on: {task['name']}")
+        self.simulate_block_apps()
+        threading.Thread(target=self.run_timer).start()
+
+    def run_timer(self):
+        while self.remaining_time > 0 and self.running:
+            mins, secs = divmod(self.remaining_time, 60)
+            self.timer_label.config(text=f"{mins:02d}:{secs:02d}")
+            time.sleep(1)
+            self.remaining_time -= 1
+            self.root.update_idletasks()
+
+        if self.running:
+            self.running = False
+            self.focus_points += 10
+            self.points_label.config(text=f"Focus Points: {self.focus_points}")
+            self.unblock_apps()
+            messagebox.showinfo("Task Complete", "Good job! Time for a break.")
+            self.start_break()
+
+    def start_break(self):
+        self.is_break = True
+        self.remaining_time = self.break_duration
+        self.status_label.config(text="On Break 💤")
+        threading.Thread(target=self.run_break_timer).start()
+
+    def run_break_timer(self):
+        while self.remaining_time > 0 and self.is_break:
+            mins, secs = divmod(self.remaining_time, 60)
+            self.timer_label.config(text=f"{mins:02d}:{secs:02d}")
+            time.sleep(1)
+            self.remaining_time -= 1
+            self.root.update_idletasks()
+
+        if self.is_break:
+            self.is_break = False
+            messagebox.showinfo("Break Over", "Let's get back to work!")
+            self.status_label.config(text="Ready for next task")
+
+    def stop_timer(self):
+        self.running = False
+        self.is_break = False
+        self.unblock_apps()
+        self.status_label.config(text="Stopped")
+
+    # ---------------------------
+    # Simulation of App Blocking
+    # ---------------------------
+    def simulate_block_apps(self):
+        # In real implementation, you would block via OS commands or hosts file.
+        print("[Simulated] Blocking distracting apps...")
+        self.status_label.config(text="Blocking distractions...")
+
+    def unblock_apps(self):
+        print("[Simulated] Unblocking apps...")
+        self.status_label.config(text="Unblocking apps...")
+
+# -----------------------------------
+# Run the Application
+# -----------------------------------
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = FocusFlowApp(root)
+    root.mainloop()
